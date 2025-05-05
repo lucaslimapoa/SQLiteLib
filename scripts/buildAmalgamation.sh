@@ -37,7 +37,7 @@ echo "Clean-up previous files if necessary"
 [ -e Makefile ] && make distclean
 
 echo "Configure makefile"
-"${PROJECT_DIR}/sqlite/configure" --srcdir="${PROJECT_DIR}/sqlite/"
+"${PROJECT_DIR}/sqlite/configure"
 
 echo "Make SQLite amalgamation"
 make sqlite3.c
