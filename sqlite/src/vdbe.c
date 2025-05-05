@@ -607,6 +607,7 @@ static void registerTrace(int iReg, Mem *p){
   printf("R[%d] = ", iReg);
   memTracePrint(p);
   if( p->pScopyFrom ){
+    assert( p->pScopyFrom->bScopy );
     printf(" <== R[%d]", (int)(p->pScopyFrom - &p[-iReg]));
   }
   printf("\n");
@@ -1590,6 +1591,7 @@ case OP_Move: {
     { int i;
       for(i=1; i<p->nMem; i++){
         if( aMem[i].pScopyFrom==pIn1 ){
+          assert( aMem[i].bScopy );
           aMem[i].pScopyFrom = pOut;
         }
       }
@@ -1662,6 +1664,7 @@ case OP_SCopy: {            /* out2 */
 #ifdef SQLITE_DEBUG
   pOut->pScopyFrom = pIn1;
   pOut->mScopyFlags = pIn1->flags;
+  pIn1->bScopy = 1;
 #endif
   break;
 }
@@ -4538,9 +4541,11 @@ case OP_OpenEphemeral: {     /* ncycle */
         }
       }
       pCx->isOrdered = (pOp->p5!=BTREE_UNORDERED);
+      assert( p->apCsr[pOp->p1]==pCx );
       if( rc ){
         assert( !sqlite3BtreeClosesWithCursor(pCx->ub.pBtx, pCx->uc.pCursor) );
         sqlite3BtreeClose(pCx->ub.pBtx);
+        p->apCsr[pOp->p1] = 0;  /* Not required; helps with static analysis */
       }else{
         assert( sqlite3BtreeClosesWithCursor(pCx->ub.pBtx, pCx->uc.pCursor) );
       }

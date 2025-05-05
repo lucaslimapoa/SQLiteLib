@@ -72,11 +72,11 @@ namespace eval trd {
   # The following mirrors the set of test suites invoked by "all.test".
   #
   set all_configs {
-    full no_optimization memsubsys1 memsubsys2 singlethread 
-    multithread onefile utf16 exclusive persistent_journal 
+    full no_optimization memsubsys1 memsubsys2 singlethread
+    multithread onefile utf16 exclusive persistent_journal
     persistent_journal_error no_journal no_journal_error
-    autovacuum_ioerr no_mutex_try fullmutex journaltest 
-    inmemory_journal pcache0 pcache10 pcache50 pcache90 
+    autovacuum_ioerr no_mutex_try fullmutex journaltest
+    inmemory_journal pcache0 pcache10 pcache50 pcache90
     pcache100 prepare mmap
   }
 
@@ -91,17 +91,18 @@ namespace eval trd {
     -DSQLITE_ENABLE_STMT_SCANSTATUS
   }
 
-  # These two are used by [testrunner.tcl mdevtest] (All-O0) and 
+  # These two are used by [testrunner.tcl mdevtest] (All-O0) and
   # [testrunner.tcl sdevtest] (All-Sanitize).
   #
   set build(All-Debug) {
-    --enable-debug --enable-all
+    --with-debug --enable-all
     -DSQLITE_ENABLE_ORDERED_SET_AGGREGATES
+    -DSQLITE_ENABLE_NORMALIZE
   }
   set build(All-O0) {
     -O0 --enable-all
   }
-  set build(All-Sanitize) { 
+  set build(All-Sanitize) {
     -DSQLITE_OMIT_LOOKASIDE=1
     --enable-all -fsanitize=address,undefined -fno-sanitize-recover=undefined
   }
@@ -110,12 +111,14 @@ namespace eval trd {
     CC=clang -fsanitize=address,undefined -fno-sanitize-recover=undefined
     -DSQLITE_ENABLE_STAT4
     -DSQLITE_OMIT_LOOKASIDE=1
+    -DSQLITE_ENABLE_NORMALIZE
     -DCONFIG_SLOWDOWN_FACTOR=5.0
     -DSQLITE_ENABLE_RBU
-    --enable-debug
+    --with-debug
     --enable-all
   }
   set build(Stdcall) {
+    -DWITHOUT_JIMSH=1
     -DUSE_STDCALL=1
     -DSQLITE_USE_ONLY_WIN32=1
     -O2
@@ -167,6 +170,7 @@ namespace eval trd {
     -DSQLITE_SOUNDEX=1
     -DSQLITE_ENABLE_ATOMIC_WRITE=1
     -DSQLITE_ENABLE_MEMORY_MANAGEMENT=1
+    -DSQLITE_ENABLE_NORMALIZE
     -DSQLITE_ENABLE_OVERSIZE_CELL_CHECK=1
     -DSQLITE_ENABLE_STAT4
     -DSQLITE_ENABLE_STMT_SCANSTATUS
@@ -182,6 +186,7 @@ namespace eval trd {
     -DSQLITE_ENABLE_FTS3=1
     -DSQLITE_ENABLE_RTREE=1
     -DSQLITE_ENABLE_MEMSYS5=1
+    -DSQLITE_ENABLE_NORMALIZE
     -DSQLITE_ENABLE_COLUMN_METADATA=1
     -DSQLITE_ENABLE_STAT4
     -DSQLITE_ENABLE_HIDDEN_COLUMNS
@@ -192,7 +197,7 @@ namespace eval trd {
   set build(Debug-Two) {
     -DSQLITE_DEFAULT_MEMSTATUS=0
     -DSQLITE_MAX_EXPR_DEPTH=0
-    --enable-debug
+    --with-debug
   }
   set build(Fast-One) {
     -O6
@@ -298,6 +303,7 @@ namespace eval trd {
     -DSQLITE_ENABLE_FTS3=1
     -DSQLITE_ENABLE_FTS3_PARENTHESIS=1
     -DSQLITE_ENABLE_FTS3_TOKENIZER=1
+    -DSQLITE_ENABLE_NORMALIZE=1
     -DSQLITE_ENABLE_PERSIST_WAL=1
     -DSQLITE_ENABLE_PURGEABLE_PCACHE=1
     -DSQLITE_ENABLE_RTREE=1
@@ -563,7 +569,7 @@ proc make_script {cfg srcdir bMsvc} {
           }
           --enable-fts5 {
             lappend opts -DSQLITE_ENABLE_FTS5
-          } 
+          }
           --enable-shared {
             lappend makeOpts USE_CRT_DLL=1 DYNAMIC_SHELL=1
           }
@@ -573,7 +579,7 @@ proc make_script {cfg srcdir bMsvc} {
           }
           --enable-all {
           }
-          --enable-debug {
+          --with-debug {
             # lappend makeOpts OPTIMIZATIONS=0
             lappend opts -DSQLITE_DEBUG
           }

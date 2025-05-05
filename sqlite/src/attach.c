@@ -175,6 +175,12 @@ static void attachFunc(
       sqlite3_free(zErr);
       return;
     }
+    if( (db->flags & SQLITE_AttachWrite)==0 ){
+      flags &= ~(SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE);
+      flags |= SQLITE_OPEN_READONLY;
+    }else if( (db->flags & SQLITE_AttachCreate)==0 ){
+      flags &= ~SQLITE_OPEN_CREATE;
+    }
     assert( pVfs );
     flags |= SQLITE_OPEN_MAIN_DB;
     rc = sqlite3BtreeOpen(pVfs, zPath, db, &pNew->pBt, 0, flags);
@@ -227,15 +233,6 @@ static void attachFunc(
     sqlite3BtreeLeaveAll(db);
     assert( zErrDyn==0 || rc!=SQLITE_OK );
   }
-#ifdef SQLITE_USER_AUTHENTICATION
-  if( rc==SQLITE_OK && !REOPEN_AS_MEMDB(db) ){
-    u8 newAuth = 0;
-    rc = sqlite3UserAuthCheckLogin(db, zName, &newAuth);
-    if( newAuth<db->auth.authLevel ){
-      rc = SQLITE_AUTH_USER;
-    }
-  }
-#endif
   if( rc ){
     if( ALWAYS(!REOPEN_AS_MEMDB(db)) ){
       int iDb = db->nDb - 1;

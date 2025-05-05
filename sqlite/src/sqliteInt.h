@@ -881,6 +881,8 @@ typedef u64 tRowcnt;
 **    0.5 -> -10           0.1 -> -33        0.0625 -> -40
 */
 typedef INT16_TYPE LogEst;
+#define LOGEST_MIN (-32768)
+#define LOGEST_MAX (32767)
 
 /*
 ** Set the SQLITE_PTRSIZE macro to the number of bytes in a pointer
@@ -1151,7 +1153,7 @@ extern u32 sqlite3WhereTrace;
 ** 0xFFFF----   Low-level debug messages
 **
 ** 0x00000001   Code generation
-** 0x00000002   Solver
+** 0x00000002   Solver (Use 0x40000 for less detail)
 ** 0x00000004   Solver costs
 ** 0x00000008   WhereLoop inserts
 **
@@ -1170,6 +1172,8 @@ extern u32 sqlite3WhereTrace;
 **
 ** 0x00010000   Show more detail when printing WHERE terms
 ** 0x00020000   Show WHERE terms returned from whereScanNext()
+** 0x00040000   Solver overview messages
+** 0x00080000   Star-query heuristic
 */
 
 
@@ -1602,47 +1606,11 @@ struct FuncDefHash {
 };
 #define SQLITE_FUNC_HASH(C,L) (((C)+(L))%SQLITE_FUNC_HASH_SZ)
 
-#if defined(SQLITE_USER_AUTHENTICATION)
-# warning  "The SQLITE_USER_AUTHENTICATION extension is deprecated. \
- See ext/userauth/user-auth.txt for details."
-#endif
-#ifdef SQLITE_USER_AUTHENTICATION
-/*
-** Information held in the "sqlite3" database connection object and used
-** to manage user authentication.
-*/
-typedef struct sqlite3_userauth sqlite3_userauth;
-struct sqlite3_userauth {
-  u8 authLevel;                 /* Current authentication level */
-  int nAuthPW;                  /* Size of the zAuthPW in bytes */
-  char *zAuthPW;                /* Password used to authenticate */
-  char *zAuthUser;              /* User name used to authenticate */
-};
-
-/* Allowed values for sqlite3_userauth.authLevel */
-#define UAUTH_Unknown     0     /* Authentication not yet checked */
-#define UAUTH_Fail        1     /* User authentication failed */
-#define UAUTH_User        2     /* Authenticated as a normal user */
-#define UAUTH_Admin       3     /* Authenticated as an administrator */
-
-/* Functions used only by user authorization logic */
-int sqlite3UserAuthTable(const char*);
-int sqlite3UserAuthCheckLogin(sqlite3*,const char*,u8*);
-void sqlite3UserAuthInit(sqlite3*);
-void sqlite3CryptFunc(sqlite3_context*,int,sqlite3_value**);
-
-#endif /* SQLITE_USER_AUTHENTICATION */
-
 /*
 ** typedef for the authorization callback function.
 */
-#ifdef SQLITE_USER_AUTHENTICATION
-  typedef int (*sqlite3_xauth)(void*,int,const char*,const char*,const char*,
-                               const char*, const char*);
-#else
-  typedef int (*sqlite3_xauth)(void*,int,const char*,const char*,const char*,
-                               const char*);
-#endif
+typedef int (*sqlite3_xauth)(void*,int,const char*,const char*,const char*,
+                             const char*);
 
 #ifndef SQLITE_OMIT_DEPRECATED
 /* This is an extra SQLITE_TRACE macro that indicates "legacy" tracing
@@ -1803,9 +1771,6 @@ struct sqlite3 {
   void (*xUnlockNotify)(void **, int);  /* Unlock notify callback */
   sqlite3 *pNextBlocked;        /* Next in list of all blocked connections */
 #endif
-#ifdef SQLITE_USER_AUTHENTICATION
-  sqlite3_userauth auth;        /* User authentication information */
-#endif
 };
 
 /*
@@ -1869,6 +1834,9 @@ struct sqlite3 {
 #define SQLITE_CorruptRdOnly  HI(0x00002) /* Prohibit writes due to error */
 #define SQLITE_ReadUncommit   HI(0x00004) /* READ UNCOMMITTED in shared-cache */
 #define SQLITE_FkNoAction     HI(0x00008) /* Treat all FK as NO ACTION */
+#define SQLITE_AttachCreate   HI(0x00010) /* ATTACH allowed to create new dbs */
+#define SQLITE_AttachWrite    HI(0x00020) /* ATTACH allowed to open for write */
+#define SQLITE_Comments       HI(0x00040) /* Enable SQL comments */
 
 /* Flags used only if debugging */
 #ifdef SQLITE_DEBUG
@@ -1928,6 +1896,7 @@ struct sqlite3 {
 #define SQLITE_NullUnusedCols 0x04000000 /* NULL unused columns in subqueries */
 #define SQLITE_OnePass        0x08000000 /* Single-pass DELETE and UPDATE */
 #define SQLITE_OrderBySubq    0x10000000 /* ORDER BY in subquery helps outer */
+#define SQLITE_StarQuery      0x20000000 /* Heurists for star queries */
 #define SQLITE_AllOpts        0xffffffff /* All optimizations */
 
 /*
@@ -1964,7 +1933,7 @@ struct sqlite3 {
 ** field is used by per-connection app-def functions.
 */
 struct FuncDef {
-  i8 nArg;             /* Number of arguments.  -1 means unlimited */
+  i16 nArg;            /* Number of arguments.  -1 means unlimited */
   u32 funcFlags;       /* Some combination of SQLITE_FUNC_* */
   void *pUserData;     /* User data parameter */
   FuncDef *pNext;      /* Next function with same name */
@@ -3257,13 +3226,8 @@ struct ExprList {
 */
 struct IdList {
   int nId;         /* Number of identifiers on the list */
-  u8 eU4;          /* Which element of a.u4 is valid */
   struct IdList_item {
     char *zName;      /* Name of the identifier */
-    union {
-      int idx;          /* Index in some Table.aCol[] of a column named zName */
-      Expr *pExpr;      /* Expr to implement a USING variable -- NOT USED */
-    } u4;
   } a[1];
 };
 
@@ -3950,9 +3914,7 @@ struct Parse {
   int nVtabLock;            /* Number of virtual tables to lock */
 #endif
   int nHeight;              /* Expression tree height of current sub-select */
-#ifndef SQLITE_OMIT_EXPLAIN
   int addrExplain;          /* Address of current OP_Explain opcode */
-#endif
   VList *pVList;            /* Mapping between variable names and numbers */
   Vdbe *pReprepare;         /* VM being reprepared (sqlite3Reprepare()) */
   const char *zTail;        /* All SQL text past the last semicolon parsed */

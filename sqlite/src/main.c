@@ -767,7 +767,7 @@ int sqlite3_config(int op, ...){
 static int setupLookaside(sqlite3 *db, void *pBuf, int sz, int cnt){
 #ifndef SQLITE_OMIT_LOOKASIDE
   void *pStart;
-  sqlite3_int64 szAlloc = sz*(sqlite3_int64)cnt;
+  sqlite3_int64 szAlloc;
   int nBig;   /* Number of full-size slots */
   int nSm;    /* Number smaller LOOKASIDE_SMALL-byte slots */
  
@@ -786,7 +786,9 @@ static int setupLookaside(sqlite3 *db, void *pBuf, int sz, int cnt){
   */
   sz = ROUNDDOWN8(sz);  /* IMP: R-33038-09382 */
   if( sz<=(int)sizeof(LookasideSlot*) ) sz = 0;
+  if( sz>65528 ) sz = 65528;
   if( cnt<0 ) cnt = 0;
+  szAlloc = (i64)sz*(i64)cnt;
   if( sz==0 || cnt==0 ){
     sz = 0;
     pStart = 0;
@@ -801,10 +803,10 @@ static int setupLookaside(sqlite3 *db, void *pBuf, int sz, int cnt){
 #ifndef SQLITE_OMIT_TWOSIZE_LOOKASIDE
   if( sz>=LOOKASIDE_SMALL*3 ){
     nBig = szAlloc/(3*LOOKASIDE_SMALL+sz);
-    nSm = (szAlloc - sz*nBig)/LOOKASIDE_SMALL;
+    nSm = (szAlloc - (i64)sz*(i64)nBig)/LOOKASIDE_SMALL;
   }else if( sz>=LOOKASIDE_SMALL*2 ){
     nBig = szAlloc/(LOOKASIDE_SMALL+sz);
-    nSm = (szAlloc - sz*nBig)/LOOKASIDE_SMALL;
+    nSm = (szAlloc - (i64)sz*(i64)nBig)/LOOKASIDE_SMALL;
   }else
 #endif /* SQLITE_OMIT_TWOSIZE_LOOKASIDE */
   if( sz>0 ){
@@ -959,7 +961,7 @@ int sqlite3_db_config(sqlite3 *db, int op, ...){
     default: {
       static const struct {
         int op;      /* The opcode */
-        u32 mask;    /* Mask of the bit in sqlite3.flags to set/clear */
+        u64 mask;    /* Mask of the bit in sqlite3.flags to set/clear */
       } aFlagOp[] = {
         { SQLITE_DBCONFIG_ENABLE_FKEY,           SQLITE_ForeignKeys    },
         { SQLITE_DBCONFIG_ENABLE_TRIGGER,        SQLITE_EnableTrigger  },
@@ -980,6 +982,9 @@ int sqlite3_db_config(sqlite3 *db, int op, ...){
         { SQLITE_DBCONFIG_TRUSTED_SCHEMA,        SQLITE_TrustedSchema  },
         { SQLITE_DBCONFIG_STMT_SCANSTATUS,       SQLITE_StmtScanStatus },
         { SQLITE_DBCONFIG_REVERSE_SCANORDER,     SQLITE_ReverseOrder   },
+        { SQLITE_DBCONFIG_ENABLE_ATTACH_CREATE,  SQLITE_AttachCreate   },
+        { SQLITE_DBCONFIG_ENABLE_ATTACH_WRITE,   SQLITE_AttachWrite    },
+        { SQLITE_DBCONFIG_ENABLE_COMMENTS,       SQLITE_Comments       },
       };
       unsigned int i;
       rc = SQLITE_ERROR; /* IMP: R-42790-23372 */
@@ -1423,10 +1428,6 @@ void sqlite3LeaveMutexAndCloseZombie(sqlite3 *db){
   sqlite3Error(db, SQLITE_OK); /* Deallocates any cached error strings. */
   sqlite3ValueFree(db->pErr);
   sqlite3CloseExtensions(db);
-#if SQLITE_USER_AUTHENTICATION
-  sqlite3_free(db->auth.zAuthUser);
-  sqlite3_free(db->auth.zAuthPW);
-#endif
 
   db->eOpenState = SQLITE_STATE_ERROR;
 
@@ -2861,8 +2862,8 @@ static const int aHardLimit[] = {
 #if SQLITE_MAX_VDBE_OP<40
 # error SQLITE_MAX_VDBE_OP must be at least 40
 #endif
-#if SQLITE_MAX_FUNCTION_ARG<0 || SQLITE_MAX_FUNCTION_ARG>127
-# error SQLITE_MAX_FUNCTION_ARG must be between 0 and 127
+#if SQLITE_MAX_FUNCTION_ARG<0 || SQLITE_MAX_FUNCTION_ARG>32767
+# error SQLITE_MAX_FUNCTION_ARG must be between 0 and 32767
 #endif
 #if SQLITE_MAX_ATTACHED<0 || SQLITE_MAX_ATTACHED>125
 # error SQLITE_MAX_ATTACHED must be between 0 and 125
@@ -2929,8 +2930,8 @@ int sqlite3_limit(sqlite3 *db, int limitId, int newLimit){
   if( newLimit>=0 ){                   /* IMP: R-52476-28732 */
     if( newLimit>aHardLimit[limitId] ){
       newLimit = aHardLimit[limitId];  /* IMP: R-51463-25634 */
-    }else if( newLimit<1 && limitId==SQLITE_LIMIT_LENGTH ){
-      newLimit = 1;
+    }else if( newLimit<SQLITE_MIN_LENGTH && limitId==SQLITE_LIMIT_LENGTH ){
+      newLimit = SQLITE_MIN_LENGTH;
     }
     db->aLimit[limitId] = newLimit;
   }
@@ -3325,6 +3326,9 @@ static int openDatabase(
                  | SQLITE_EnableTrigger
                  | SQLITE_EnableView
                  | SQLITE_CacheSpill
+                 | SQLITE_AttachCreate
+                 | SQLITE_AttachWrite
+                 | SQLITE_Comments
 #if !defined(SQLITE_TRUSTED_SCHEMA) || SQLITE_TRUSTED_SCHEMA+0!=0
                  | SQLITE_TrustedSchema
 #endif
@@ -4274,7 +4278,6 @@ int sqlite3_test_control(int op, ...){
       /* Invoke these debugging routines so that the compiler does not
       ** issue "defined but not used" warnings. */
       if( x==9999 ){
-        sqlite3ShowExpr(0);
         sqlite3ShowExpr(0);
         sqlite3ShowExprList(0);
         sqlite3ShowIdList(0);
