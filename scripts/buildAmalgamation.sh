@@ -39,8 +39,13 @@ echo "Clean-up previous files if necessary"
 echo "Configure makefile"
 "${PROJECT_DIR}/sqlite/configure"
 
+echo "Manually building mkkeywordhash for macOS"
+cc ${CFLAGS} "${PROJECT_DIR}/sqlite/tool/mkkeywordhash.c" -o mkkeywordhash
+echo "Generating keywordhash.h using native macOS binary"
+./mkkeywordhash > keywordhash.h
+
 echo "Make SQLite amalgamation"
-make sqlite3.c
+make sqlite3.c -i
 
 # Check for SQLite-SEE files in source root
 # If present, merge with amalgamation
