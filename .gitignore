@@ -126,3 +126,5 @@ xcuserdata/
 
 ### USER configuration files ###
 /SQLiteLib-USER.xcconfig
+
+sqlite/config.log
